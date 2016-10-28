@@ -48,6 +48,18 @@
 
 #endif // _MSC_VER
 
+// AFAIK there's no way to detect in GCC or MSVC. GCC has an __EXCEPTIONS macro,
+// but that is only defined if `-fexceptions` is *explicitly* passed on the
+// command line; defaulting to exceptions enabled will not set this macro.
+//
+// Non-Clang users will need to defined GSL_NO_EXCEPTIONS explicitly from the
+// command line if they are building with exceptions disabled.
+#if defined(__clang__) && !__has_feature(cxx_exceptions)
+// If building with -fno-exceptions, we'll fall back to gsl::Ensures in places
+// where we would have normally thrown an exception.
+#define GSL_NO_EXCEPTIONS
+#endif // defined(__has_feature) && !__has_feature(cxx_exceptions)
+
 namespace gsl
 {
 //
@@ -125,9 +137,14 @@ template <class T, class U>
 inline T narrow(U u)
 {
     T t = narrow_cast<T>(u);
+#ifndef GSL_NO_EXCEPTIONS
     if (static_cast<U>(t) != u) throw narrowing_error();
     if (!details::is_same_signedness<T, U>::value && ((t < T{}) != (u < U{})))
         throw narrowing_error();
+#else
+    Ensures(static_cast<U>(t) == u);
+    Ensures(!(!details::is_same_signedness<T, U>::value && ((t < T{}) != (u < U{}))));
+#endif
     return t;
 }
 
